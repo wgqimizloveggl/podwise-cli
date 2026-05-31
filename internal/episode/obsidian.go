@@ -101,11 +101,17 @@ var nonSafeFilenameRe = regexp.MustCompile(`[^\p{L}\p{N}\-_ ]+`)
 
 // sanitizeFilename produces a filesystem-safe name from an arbitrary string.
 func sanitizeFilename(s string) string {
+	// Strip any invalid UTF-8 sequences first so the regex and filesystem
+	// are never handed malformed bytes.
+	s = strings.ToValidUTF8(s, "")
 	s = nonSafeFilenameRe.ReplaceAllString(s, "")
 	s = strings.TrimSpace(s)
 	s = strings.ReplaceAll(s, " ", "_")
-	if len(s) > 80 {
-		s = s[:80]
+	// Truncate by rune count, not byte count, to avoid splitting multi-byte
+	// characters (e.g. Chinese/Japanese) which would produce an illegal byte
+	// sequence that macOS and other systems reject.
+	if runes := []rune(s); len(runes) > 80 {
+		s = string(runes[:80])
 	}
 	if s == "" {
 		s = "episode"
